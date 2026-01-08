@@ -14,10 +14,8 @@
 - 高雄市交通科技執法據點（固定式、移動式）
 - 各村里人口統計月報表
 
-實際使用的 JSON 檔案放在：
-
-- ConsoleApp：`ConsoleApp/App_Data/`
-- WebApp：`WebApp/App_Data/`
+JSON 原始檔都放在 `ConsoleApp/App_Data/`
+WebApp 透過 `WebApp.csproj` 的設定`（Include="..\ConsoleApp\App_Data\**\*.*"）`在建置時自動把這些檔案連結並複製到執行時的 App_Data 目錄，所以兩個專案共用同一份資料，不需要在 WebApp 再放一份 JSON。
 
 ## 工作區分析與示範說明
 
@@ -35,18 +33,18 @@
 ## 專案結構（摘要）
 
 ```text
-workplace/
+github_work_2/
 ├── ConsoleApp/
 │   ├── ConsoleApp.sln
 │   └── ConsoleApp/
 │       ├── ConsoleApp.csproj
-│       ├── [MainForm.cs](http://_vscodecontentref_/2)
+│       ├── MainForm.cs
 │       ├── Services/
 │       └── App_Data/
-│           └── Visitor.json  # 觀光人數資料
+│           └── Visitor.json     # 觀光人數資料
 ├── WebApp/
 │   ├── WebApp.csproj
-│   ├── [Program.cs](http://_vscodecontentref_/3)
+│   ├── Program.cs
 │   ├── App_Data/
 │   │   ├── Visitor.json
 │   │   ├── AccidentPlaceBefore104.json
@@ -54,8 +52,8 @@ workplace/
 │   │   ├── MoveCamara113.json
 │   │   └── Population.json
 │   └── wwwroot/
-│       └── [index.html](http://_vscodecontentref_/4)           # 儀表板前端程式
-└── [README.md](http://_vscodecontentref_/5)
+│       └── index.html           # 儀表板前端程式
+└── README.md
 ```
 
 ## 建置與執行
