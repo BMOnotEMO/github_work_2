@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+  <TargetFramework>net9.0-windows10.0.19041</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ScottPlot" Version="5.1.57" />
+    <PackageReference Include="ScottPlot.WinForms" Version="5.1.57" />
+    <PackageReference Include="WinForms.DataVisualization" Version="1.10.0" />
+  </ItemGroup>
+
+  <!-- Copy any files in App_Data (if present) to output; using wildcard avoids errors when files are missing -->
+  <ItemGroup>
+    <None Include="App_Data\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\SharedLib\SharedLib.csproj" />
+  </ItemGroup>
+
+</Project>

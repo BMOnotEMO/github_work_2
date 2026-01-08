@@ -1,0 +1,21 @@
+# Build outputs
+bin/
+obj/
+**/bin/
+**/obj/
+
+# VS / Rider / tooling
+.vs/
+.idea/
+
+# User-specific
+*.user
+*.suo
+*.userprefs
+
+# Logs
+*.log
+
+# Misc
+*.tmp
+*.cache

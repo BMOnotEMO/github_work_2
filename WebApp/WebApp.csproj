@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- copy App_Data from the existing ConsoleApp so the web app can read the same sample files -->
+    <None Include="..\ConsoleApp\App_Data\**\*.*">
+      <Link>App_Data\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- bring in the A1 交通事故資料集 as App_Data/A1Traffic.json -->
+    <None Include="..\..\database\A1交通事故\A1Traffic.json">
+      <Link>App_Data\A1Traffic.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- 高雄市車禍相關資料集，建置時一併複製到 WebApp 的 App_Data 目錄 -->
+    <None Include="..\..\database\高雄市車禍\A1Before105.json">
+      <Link>App_Data\A1Before105.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\database\高雄市車禍\AccidentPlaceBefore104.json">
+      <Link>App_Data\AccidentPlaceBefore104.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\database\高雄市車禍\Camara113.json">
+      <Link>App_Data\Camara113.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\database\高雄市車禍\MoveCamara113.json">
+      <Link>App_Data\MoveCamara113.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SharedLib\SharedLib.csproj" />
+  </ItemGroup>
+
+</Project>

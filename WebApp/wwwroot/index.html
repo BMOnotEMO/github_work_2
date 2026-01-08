@@ -1,0 +1,2259 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>高雄歷年觀光人數</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <style>
+      html {
+        /* 永遠預留垂直捲軸空間，避免內容左右晃動 */
+        overflow-y: scroll;
+      }
+
+      body {
+        min-height: 100vh;
+        background: linear-gradient(180deg, #edf2f7 0%, #ffffff 60%, #f1f5f9 100%);
+        color: #0f172a;
+        font-family: 'Segoe UI', system-ui, 'Noto Sans TC', sans-serif;
+      }
+
+      .app-shell {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 2.5rem 1rem 3rem;
+      }
+
+      .control-card,
+      .info-card,
+      #tableWrap,
+      #chartWrap {
+        border: none;
+        border-radius: 1rem;
+        background: #fff;
+        box-shadow: 0 12px 36px rgba(15, 23, 42, 0.11);
+      }
+
+      .hero h1 {
+        font-size: 2.7rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+      }
+
+      .hero p {
+        color: #475569;
+        margin-bottom: 0;
+      }
+
+      .status-chip {
+        border-radius: 999px;
+        padding: 0.25rem 0.9rem;
+        font-size: 0.75rem;
+        letter-spacing: 0.12rem;
+        text-transform: uppercase;
+        color: #fff;
+        user-select: none;
+      }
+
+      .table-responsive {
+        max-height: 420px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        border-radius: 0.9rem;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        background: #fff;
+        position: relative;
+      }
+
+      table {
+        width: 100%;
+        table-layout: fixed;
+      }
+
+      table th,
+      table td {
+        white-space: normal;
+        font-size: 0.85rem;
+        word-break: break-word;
+      }
+
+      .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #f8fafc;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+        height: 3.5rem;
+        vertical-align: bottom;
+      }
+
+      .table td,
+      .table th {
+        padding: 0.55rem 0.75rem;
+        border-color: rgba(15, 23, 42, 0.08);
+      }
+
+      .table tbody tr:hover {
+        background: rgba(59, 130, 246, 0.06);
+      }
+
+      .th-rotate {
+        display: inline-block;
+        transform: rotate(-55deg);
+        transform-origin: bottom left;
+        white-space: nowrap;
+      }
+
+      .chart-header {
+        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        padding-bottom: 0.7rem;
+        margin-bottom: 0.75rem;
+      }
+
+      #chartArea {
+        height: 320px;
+      }
+      #trafficChartArea {
+        height: 380px;
+        overflow-x: auto;
+        overflow-y: hidden;
+      }
+
+      #trafficChartArea canvas {
+        max-width: none;
+      }
+
+      .traffic-sub-chart-area {
+        height: 260px;
+        overflow-x: auto;
+        overflow-y: hidden;
+      }
+
+      .traffic-sub-chart-area canvas {
+        max-width: none;
+      }
+
+      .traffic-a123-box {
+        display: block;
+        margin-top: 6px;
+        padding: 8px 12px;
+        background: #e0f2fe;
+        border-radius: 0.75rem;
+        font-size: 0.9rem;
+        line-height: 1.4;
+      }
+
+      .hotspot-marker {
+        background: #ef4444;
+        border-radius: 999px;
+        border: 2px solid #b91c1c;
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 0.85rem;
+        line-height: 1.4rem;
+        text-align: center;
+        box-shadow: 0 0 8px rgba(0, 0, 0, 0.25);
+      }
+
+      .loader {
+        width: 3rem;
+        height: 3rem;
+        border: 0.35rem solid rgba(59, 130, 246, 0.2);
+        border-top-color: #2563eb;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* 景點按鈕選取動畫與過渡效果 */
+      .region-btn {
+        transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+      }
+
+      .region-btn.active-region {
+        transform: translateY(-1px) scale(1.03);
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+      }
+
+      /* 當選擇景點時，上方控制區塊改為半透明且不可互動 */
+      .controls-disabled {
+        opacity: 0.45;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#" data-section="tourism">高雄城市開放資料中心</a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#mainNavbar"
+          aria-controls="mainNavbar"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNavbar">
+          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            <li class="nav-item">
+              <a class="nav-link active" aria-current="page" href="#" data-section="tourism">觀光人數</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-section="traffic">交通事故</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-section="population">人口統計</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <!-- 觀光人數儀表板（現有功能保留在這裡） -->
+    <div id="tourismSection" class="app-shell">
+      <div class="hero mb-4">
+        <h1>高雄歷年觀光人數</h1>
+      </div>
+
+      <div class="info-card p-4 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+          <p class="mb-1 fw-semibold" id="meta">尚未載入</p>
+          <p class="text-muted small mb-0" id="subtitle">—</p>
+        </div>
+        <div class="d-flex align-items-center gap-2 d-none">
+          <div class="status-chip" id="statusBadge">初始化</div>
+          <div class="text-end">
+            <div class="fw-bold fs-4" id="count">0</div>
+            <div class="text-muted small">JSON 紀錄</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="controlsCard" class="control-card p-4 mb-4">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label text-uppercase text-secondary small mb-1">選擇年份</label>
+            <select id="yearSelect" class="form-select" disabled></select>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label text-uppercase text-secondary small mb-1">景點搜尋</label>
+            <input id="filter" class="form-control" type="search" placeholder="輸入景點名稱（搜尋欄位，例如：蓮池潭）" disabled />
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+          <div>
+            <p class="mb-1 fw-semibold">景點</p>
+            <p class="text-muted small mb-0" id="regionSummary">尚未載入</p>
+          </div>
+          <button id="regionClear" type="button" class="btn btn-sm btn-outline-secondary" disabled>清除景點篩選</button>
+        </div>
+        <div class="mt-3" id="regionList"></div>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-lg-7">
+          <div id="tableWrap" class="p-4">
+            <div class="d-flex justify-content-center align-items-center" style="min-height: 240px;">
+              <div class="text-center text-muted">
+                <div class="loader mb-2"></div>
+                <div>正在準備資料…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div id="chartWrap" class="p-4">
+            <div class="chart-header d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <p class="mb-0 fw-semibold">年度圖表</p>
+                <small class="text-muted">前十名景點人次</small>
+              </div>
+              <div class="text-end">
+                <span id="chartHint" class="badge bg-light text-dark">選擇年份即可</span>
+              </div>
+            </div>
+            <div id="chartArea">
+              <canvas id="chartCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 交通事故專區 -->
+    <div id="trafficSection" class="app-shell d-none">
+      <div class="hero mb-4">
+        <h1>高雄市交通事故與測速點</h1>
+      </div>
+
+      <div class="mb-3">
+        <div class="btn-group" role="group" aria-label="Traffic sub views">
+          <button id="trafficCrashBtn" type="button" class="btn btn-primary btn-sm">車禍統計</button>
+          <button id="trafficEnforcementBtn" type="button" class="btn btn-outline-primary btn-sm">科技執法</button>
+        </div>
+      </div>
+      <!-- 車禍統計子頁 -->
+      <div id="trafficCrashPane">
+        <div class="info-card p-4 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+          <div>
+            <p class="mb-1 fw-semibold" id="trafficMeta">高雄市交通事故熱區</p>
+            <p class="text-muted small mb-0" id="trafficSubtitle">來源： 政府資料開放平台(高雄市104年前50大易肇事路口)</p>
+          </div>
+          <div class="d-flex align-items-center gap-2 d-none">
+            <span class="status-chip" id="trafficStatusBadge">初始化</span>
+            <div class="text-end">
+              <div class="fw-bold fs-4" id="trafficCount">0</div>
+              <div class="text-muted small">行政區</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 讓車禍地圖與科技執法一樣放在上方的大卡片 -->
+        <div class="info-card p-3 mb-4">
+          <div id="trafficCrashMap" style="height: 420px; border-radius: 0.75rem; overflow: hidden;"></div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-12">
+            <div id="trafficChartWrap" class="p-4">
+              <div class="chart-header d-flex justify-content-between align-items-start gap-3">
+                <div>
+                  <p class="mb-0 fw-semibold">各行政區 A1 事故件數</p>
+                </div>
+                <div class="text-end">
+                  <span id="trafficChartHint" class="badge bg-light text-dark">載入中</span>
+                </div>
+              </div>
+              <div id="trafficChartArea">
+                <canvas id="trafficChartCanvas"></canvas>
+              </div>
+              <div class="mt-3">
+                <div class="mb-2 small fw-semibold">各行政區 A2 事故件數</div>
+                <div class="traffic-sub-chart-area">
+                  <canvas id="trafficChartCanvasA2"></canvas>
+                </div>
+              </div>
+              <div class="mt-3">
+                <div class="mb-2 small fw-semibold">各行政區 A3 事故件數</div>
+                <div class="traffic-sub-chart-area">
+                  <canvas id="trafficChartCanvasA3"></canvas>
+                </div>
+              </div>
+              <div class="mt-2 small text-muted">
+                A1：有人死亡之交通事故；A2：有人受傷之交通事故；A3：僅財物損失之交通事故。
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-12">
+            <div id="trafficTableWrap" class="p-4">
+              <div class="d-flex justify-content-center align-items-center" style="min-height: 240px;">
+                <div class="text-center text-muted">
+                  <div class="loader mb-2"></div>
+                  <div>正在準備事故資料…</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 科技執法子頁 -->
+      <div id="trafficEnforcementPane" class="d-none">
+        <div class="info-card p-4 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+          <div>
+            <p class="mb-1 fw-semibold" id="enforceMeta">尚未載入</p>
+            <p class="text-muted small mb-0" id="enforceSubtitle">—</p>
+          </div>
+          <div class="text-end small text-muted">
+            <div>固定測速：<span id="enforceFixedCount">0</span> 處</div>
+              <div>移動測速：<span id="enforceMobileCount">0</span> 處</div>
+          </div>
+        </div>
+
+        <div class="info-card p-3 mb-4">
+          <div id="trafficEnforceMap" style="height: 420px; border-radius: 0.75rem; overflow: hidden;"></div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-12">
+            <div id="enforceChartWrap" class="p-4">
+              <div class="chart-header d-flex justify-content-between align-items-start gap-3">
+                <div>
+                  <p class="mb-0 fw-semibold">科技執法分布統計</p>
+                  <small class="text-muted">依行政區與執法類型統計據點數</small>
+                </div>
+              </div>
+              <div class="mt-3">
+                <div class="mb-2 small fw-semibold">各行政區科技執法據點數</div>
+                <div class="traffic-sub-chart-area" id="enforceChartAreaDistrict">
+                  <canvas id="enforceChartCanvasDistrict"></canvas>
+                </div>
+              </div>
+              <div class="mt-3">
+                <div class="mb-2 small fw-semibold">各執法種類數量</div>
+                <div class="traffic-sub-chart-area" id="enforceChartAreaType">
+                  <canvas id="enforceChartCanvasType"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <div class="info-card p-4 h-100">
+              <h6 class="mb-3">固定式科技執法</h6>
+              <div id="enforceFixedTableWrap" class="small text-muted">
+                正在準備固定測速資料…
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="info-card p-4 h-100">
+              <h6 class="mb-3">移動式測速路段</h6>
+              <div id="enforceMobileTableWrap" class="small text-muted">
+                正在準備移動測速資料…
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 人口統計專區（之後可接各村里人口統計） -->
+    <div id="populationSection" class="app-shell d-none">
+      <div class="hero mb-4">
+        <h1>人口結構與分布</h1>
+      </div>
+      <div class="info-card p-4 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+          <p class="mb-1 fw-semibold" id="populationMeta">高雄市人口動態資料</p>
+          <p class="text-muted small mb-0" id="populationSubtitle">來源： 政府資料開放平台(各村里人口統計月報表)</p>
+        </div>
+        <div class="text-end small text-muted">
+          <div>統計年月：<span id="populationMonth">—</span></div>
+          <div>行政區數：<span id="populationDistrictCount">0</span></div>
+        </div>
+      </div>
+
+      <div class="info-card p-4 mb-4">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label text-uppercase text-secondary small mb-1">統計指標</label>
+            <select id="populationMetricSelect" class="form-select">
+              <option value="birth">出生數</option>
+              <option value="death">死亡數</option>
+              <option value="marry">結婚對數(異性)</option>
+              <option value="divorce">離婚對數(異性)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-12">
+          <div id="populationChartWrap" class="p-4">
+            <div class="chart-header d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <p class="mb-0 fw-semibold">各行政區人口指標</p>
+              </div>
+            </div>
+            <div class="mb-4">
+              <div class="mb-2 small fw-semibold">（上半）</div>
+              <div id="populationChartAreaTop" style="height: 260px; overflow-x: auto; overflow-y: hidden;">
+                <canvas id="populationChartCanvasTop"></canvas>
+              </div>
+            </div>
+            <div>
+              <div class="mb-2 small fw-semibold">（下半）</div>
+              <div id="populationChartAreaBottom" style="height: 260px; overflow-x: auto; overflow-y: hidden;">
+                <canvas id="populationChartCanvasBottom"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div id="populationTableWrap" class="p-4">
+            <div class="d-flex justify-content-center align-items-center" style="min-height: 240px;">
+              <div class="text-center text-muted">
+                <div class="loader mb-2"></div>
+                <div>正在準備人口資料…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      // 區塊切換：觀光 / 交通事故 / 人口統計
+      const sections = {
+        tourism: document.getElementById('tourismSection'),
+        traffic: document.getElementById('trafficSection'),
+        population: document.getElementById('populationSection'),
+      };
+
+      const switchSection = (key) => {
+        Object.entries(sections).forEach(([name, el]) => {
+          if (!el) return;
+          if (name === key) {
+            el.classList.remove('d-none');
+          } else {
+            el.classList.add('d-none');
+          }
+        });
+
+        document.querySelectorAll('a[data-section]').forEach((link) => {
+          if (link.dataset.section === key) {
+            link.classList.add('active');
+            link.setAttribute('aria-current', 'page');
+          } else {
+            link.classList.remove('active');
+            link.removeAttribute('aria-current');
+          }
+        });
+
+        // 第一次進入交通事故區時，才載入高雄市車禍相關 JSON
+        if (key === 'traffic' && !trafficLoaded) {
+          fetchTrafficRecords();
+        }
+
+        // 第一次進入人口統計區時，才載入人口 JSON
+        if (key === 'population' && !populationLoaded) {
+          fetchPopulationRecords();
+        }
+      };
+
+      document.addEventListener('click', (event) => {
+        const target = event.target.closest('a[data-section]');
+        if (!target) return;
+        event.preventDefault();
+        const key = target.dataset.section;
+        if (key && sections[key]) {
+          switchSection(key);
+        }
+      });
+
+      const controlsCard = document.getElementById('controlsCard');
+      const yearSelect = document.getElementById('yearSelect');
+      const filterInput = document.getElementById('filter');
+      const tableWrap = document.getElementById('tableWrap');
+      const statusBadge = document.getElementById('statusBadge');
+      const meta = document.getElementById('meta');
+      const subtitle = document.getElementById('subtitle');
+      const countIndicator = document.getElementById('count');
+      const regionSummary = document.getElementById('regionSummary');
+      const regionList = document.getElementById('regionList');
+      const regionClearBtn = document.getElementById('regionClear');
+      const chartHint = document.getElementById('chartHint');
+      const chartCanvas = document.getElementById('chartCanvas');
+      const chartArea = document.getElementById('chartArea');
+
+      // 人口統計 DOM
+      const populationTableWrap = document.getElementById('populationTableWrap');
+      const populationChartCanvasTop = document.getElementById('populationChartCanvasTop');
+      const populationChartCanvasBottom = document.getElementById('populationChartCanvasBottom');
+      const populationChartAreaTop = document.getElementById('populationChartAreaTop');
+      const populationChartAreaBottom = document.getElementById('populationChartAreaBottom');
+      const populationMeta = document.getElementById('populationMeta');
+      const populationSubtitle = document.getElementById('populationSubtitle');
+      const populationMonth = document.getElementById('populationMonth');
+      const populationDistrictCount = document.getElementById('populationDistrictCount');
+      const populationMetricSelect = document.getElementById('populationMetricSelect');
+
+      // 交通事故 DOM
+      const trafficTableWrap = document.getElementById('trafficTableWrap');
+      const trafficStatusBadge = document.getElementById('trafficStatusBadge');
+      const trafficMeta = document.getElementById('trafficMeta');
+      const trafficSubtitle = document.getElementById('trafficSubtitle');
+      const trafficCountIndicator = document.getElementById('trafficCount');
+      const trafficChartHint = document.getElementById('trafficChartHint');
+      const trafficChartCanvas = document.getElementById('trafficChartCanvas');
+      const trafficChartArea = document.getElementById('trafficChartArea');
+      const trafficChartCanvasA2 = document.getElementById('trafficChartCanvasA2');
+      const trafficChartCanvasA3 = document.getElementById('trafficChartCanvasA3');
+
+      const trafficCrashMapContainer = document.getElementById('trafficCrashMap');
+      const trafficEnforceMapContainer = document.getElementById('trafficEnforceMap');
+
+      const trafficCrashPane = document.getElementById('trafficCrashPane');
+      const trafficEnforcementPane = document.getElementById('trafficEnforcementPane');
+      const trafficCrashBtn = document.getElementById('trafficCrashBtn');
+      const trafficEnforcementBtn = document.getElementById('trafficEnforcementBtn');
+
+      const enforceMeta = document.getElementById('enforceMeta');
+      const enforceSubtitle = document.getElementById('enforceSubtitle');
+      const enforceHotspotCount = document.getElementById('enforceHotspotCount');
+      const enforceFixedCount = document.getElementById('enforceFixedCount');
+      const enforceMobileCount = document.getElementById('enforceMobileCount');
+      const enforceFixedTableWrap = document.getElementById('enforceFixedTableWrap');
+      const enforceMobileTableWrap = document.getElementById('enforceMobileTableWrap');
+      const enforceChartCanvasDistrict = document.getElementById('enforceChartCanvasDistrict');
+      const enforceChartCanvasType = document.getElementById('enforceChartCanvasType');
+      const enforceChartAreaDistrict = document.getElementById('enforceChartAreaDistrict');
+      const enforceChartAreaType = document.getElementById('enforceChartAreaType');
+
+      const FIXED_FILE = 'Visitor.json';
+      const REGION_FIELD = '地區';
+      const YEAR_FIELD = '年度';
+      const TOURISM_SOURCE_TEXT = '來源： 政府資料開放平台(高雄市主要觀光遊憩區遊客人次)';
+
+      const POPULATION_FILE = 'Population.json';
+      const POPULATION_SOURCE_TEXT = '來源： 政府資料開放平台(各村里人口統計月報表)';
+
+      // 高雄市車禍相關固定檔案（由後端在 App_Data 中提供）
+      const KAOHSIUNG_TRAFFIC_FILES = {
+        accidentPlaces: 'AccidentPlaceBefore104.json',
+        fixedCameras: 'Camara113.json',
+        mobileCameras: 'MoveCamara113.json',
+      };
+
+      let allRecords = [];
+      let fieldNames = [];
+      let chartInstance = null;
+      let chartAreaHeight = 320;
+
+      let selectedRegion = '';
+
+      // 人口統計狀態
+      let populationRecords = [];
+      let populationChartInstanceTop = null;
+      let populationChartInstanceBottom = null;
+      let populationLoaded = false;
+
+      // 交通事故狀態
+      let trafficData = {
+        accidentPlaces: [],
+        fixedCameras: [],
+        mobileCameras: [],
+      };
+      const TRAFFIC_SOURCE_TEXT = '來源： 政府資料開放平台(高雄市104年前50大易肇事路口)';
+      let trafficChartInstance = null;
+      let trafficChartInstanceA2 = null;
+      let trafficChartInstanceA3 = null;
+      let trafficChartAreaHeight = 320;
+      let trafficLoaded = false;
+      let trafficViewMode = 'crash'; // 'crash' | 'enforcement'
+
+      let enforceChartInstanceDistrict = null;
+      let enforceChartInstanceType = null;
+
+      // Leaflet 地圖實例
+      let crashMap = null;
+      let crashMapLayer = null;
+      let enforceMap = null;
+      let enforceMapLayer = null;
+
+      const updateControlsVisibility = () => {
+        if (!controlsCard) return;
+        if (selectedRegion) {
+          controlsCard.classList.add('controls-disabled');
+        } else {
+          controlsCard.classList.remove('controls-disabled');
+        }
+      };
+
+      const setStatus = (text, variant = 'success') => {
+        const bg =
+          variant === 'success'
+            ? '#10b981'
+            : variant === 'info'
+              ? '#3b82f6'
+              : variant === 'warning'
+                ? '#f59e0b'
+                : '#ef4444';
+        statusBadge.textContent = text;
+        statusBadge.style.background = bg;
+      };
+
+      const showMessage = (html) => {
+        tableWrap.innerHTML = `
+          <div class="d-flex justify-content-center align-items-center" style="min-height: 240px;">
+            <div class="text-center text-muted">${html}</div>
+          </div>`;
+      };
+
+      const setChartAreaHeight = (nextHeight) => {
+        chartAreaHeight = Math.max(220, Math.min(700, nextHeight));
+        chartArea.style.height = `${chartAreaHeight}px`;
+        if (chartInstance) chartInstance.resize();
+      };
+
+      const initializeChart = () => {
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(chartCanvas, {
+          type: 'bar',
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label: '人次',
+                data: [],
+                backgroundColor: 'rgba(59, 130, 246, 0.9)',
+                borderRadius: 6,
+                borderSkipped: false,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { ticks: { color: '#0f172a' } },
+              y: { beginAtZero: true, ticks: { color: '#0f172a' } },
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: { mode: 'index', intersect: false },
+            },
+          },
+        });
+      };
+
+      const updateChart = () => {
+        if (!chartInstance) initializeChart();
+
+        const selectedYear = yearSelect.value;
+
+        // 情境一：選了特定景點，顯示該景點歷年人次
+        if (selectedRegion) {
+          const entries = allRecords
+            .filter((row) => row && row[YEAR_FIELD] !== undefined && row[YEAR_FIELD] !== null)
+            .map((row) => ({
+              year: String(row[YEAR_FIELD]),
+              value: Number(row[selectedRegion]) || 0,
+            }))
+            .filter((e) => e.value > 0)
+            .sort((a, b) => Number(a.year) - Number(b.year));
+
+          chartInstance.data.labels = entries.map((e) => e.year);
+          chartInstance.data.datasets[0].data = entries.map((e) => e.value);
+          chartInstance.data.datasets[0].label = `${selectedRegion} 人次`;
+          chartInstance.update();
+          chartHint.textContent = `景點「${selectedRegion}」歷年人次`;
+          return;
+        }
+
+        // 情境二：沒選景點 → 顯示單一年份前 10 名景點
+        if (!allRecords.length || !selectedYear) {
+          chartInstance.data.labels = [];
+          chartInstance.data.datasets[0].data = [];
+          chartInstance.data.datasets[0].label = '人次';
+          chartInstance.update();
+          chartHint.textContent = '目前無資料';
+          return;
+        }
+
+        const record = allRecords.find((row) => String(row[YEAR_FIELD]) === String(selectedYear));
+        if (!record) {
+          chartInstance.data.labels = [];
+          chartInstance.data.datasets[0].data = [];
+          chartInstance.data.datasets[0].label = '人次';
+          chartInstance.update();
+          chartHint.textContent = '此年份尚未有資料';
+          return;
+        }
+
+        const entries = Object.entries(record)
+          .filter(([key]) => key !== YEAR_FIELD && key !== REGION_FIELD)
+          .map(([key, value]) => ({ label: key, value: Number(value) || 0 }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 10);
+
+        chartInstance.data.labels = entries.map((item) => item.label);
+        chartInstance.data.datasets[0].data = entries.map((item) => item.value);
+        chartInstance.data.datasets[0].label = '人次';
+        chartInstance.update();
+        chartHint.textContent = `${selectedYear} 前 10 名景點`;
+      };
+
+      const renderTable = (rows, labelHeader = '景點') => {
+        if (!rows.length) {
+          showMessage('<p class="lead mb-0">目前找不到資料，請重新整理。</p>');
+          countIndicator.textContent = '0';
+          return;
+        }
+
+        const thead = `
+          <thead class="table-light">
+            <tr>
+              <th scope="col" style="width: 55%;">${labelHeader}</th>
+              <th scope="col" class="text-end" style="width: 45%;">人次</th>
+            </tr>
+          </thead>`;
+
+        const tbody = rows
+          .map(({ label, value }) => {
+            const safeLabel = String(label ?? '');
+            const num = Number(value) || 0;
+            const formatted = num.toLocaleString('zh-TW');
+            return `
+              <tr>
+                <td class="text-truncate" title="${safeLabel}">${safeLabel}</td>
+                <td class="text-end">${formatted}</td>
+              </tr>`;
+          })
+          .join('');
+
+        tableWrap.innerHTML = `
+          <div class="table-responsive">
+            <table class="table table-sm table-striped table-hover align-middle mb-0">
+              ${thead}
+              <tbody>${tbody}</tbody>
+            </table>
+          </div>`;
+        countIndicator.textContent = String(rows.length);
+      };
+
+      const normalizeRegion = (value) => {
+        const text = String(value ?? '').trim();
+        return text;
+      };
+
+      // 統一行政區顯示：若結尾沒有「區/市/鄉/鎮」則補上「區」
+      const formatDistrictLabel = (value) => {
+        const text = String(value ?? '').trim();
+        if (!text) return '';
+        if (/[區市鄉鎮]$/.test(text)) return text;
+        return `${text}區`;
+      };
+
+      const extractKaohsiungDistrictFromRegion = (region) => {
+        const text = String(region ?? '').trim();
+        if (!text.startsWith('高雄市')) return '';
+        return text.replace(/^高雄市/, '');
+      };
+
+      const extractRegions = (records) => {
+        const hasRegionField = records.some((r) => Object.prototype.hasOwnProperty.call(r ?? {}, REGION_FIELD));
+        if (hasRegionField) {
+          const regions = [...new Set(records.map((r) => normalizeRegion(r[REGION_FIELD])).filter((v) => v !== ''))].sort(
+            (a, b) => a.localeCompare(b, 'zh-Hant')
+          );
+          return { mode: 'value', regions };
+        }
+
+        if (Array.isArray(fieldNames) && fieldNames.length) {
+          const placeFields = fieldNames
+            .filter((f) => String(f) !== YEAR_FIELD)
+            .map((f) => String(f).trim())
+            .filter((f) => f !== '')
+            .sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+          return { mode: 'field', regions: placeFields };
+        }
+
+        return { mode: 'none', regions: [] };
+      };
+
+      const renderRegions = () => {
+        const { mode, regions } = extractRegions(allRecords);
+        regionList.innerHTML = '';
+
+        if (!allRecords.length) {
+          regionSummary.textContent = '—';
+          regionClearBtn.disabled = true;
+          return;
+        }
+
+        if (mode === 'none' || !regions.length) {
+          regionSummary.textContent = '—';
+          regionClearBtn.disabled = true;
+          return;
+        }
+
+        const keyword = filterInput.value.trim();
+        const keywordLower = keyword.toLowerCase();
+        const visibleRegions = keyword ? regions.filter((r) => r.toLowerCase().includes(keywordLower)) : regions;
+
+        regionSummary.textContent = selectedRegion
+          ? `目前選擇：${selectedRegion}`
+          : keyword
+            ? `符合「${keyword}」的景點：${visibleRegions.length} 個`
+            : `共 ${regions.length} 個景點（可點選篩選）`;
+        regionClearBtn.disabled = !selectedRegion;
+
+        const container = document.createElement('div');
+        container.className = 'd-flex flex-wrap gap-2';
+
+        visibleRegions.forEach((region) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          const baseClass = 'btn btn-sm region-btn ';
+          btn.className =
+            baseClass + (selectedRegion === region ? 'btn-primary active-region' : 'btn-outline-primary');
+          btn.textContent = region;
+          btn.addEventListener('click', () => {
+            // 再次點擊同一個景點 → 取消選取，回到顯示所有景點
+            if (selectedRegion === region) {
+              selectedRegion = '';
+              filterInput.value = '';
+            } else {
+              selectedRegion = region;
+              filterInput.value = region;
+            }
+            updateControlsVisibility();
+            applyFilters();
+            renderRegions();
+          });
+          container.appendChild(btn);
+        });
+
+        regionList.appendChild(container);
+      };
+
+      const buildYearOptions = () => {
+        const years = [...new Set(allRecords.map((r) => r[YEAR_FIELD]))]
+          .filter((y) => y !== undefined && y !== null && String(y).trim() !== '')
+          .map((y) => String(y))
+          .sort((a, b) => Number(a) - Number(b));
+
+        yearSelect.innerHTML = '';
+        years.forEach((y) => {
+          const opt = document.createElement('option');
+          opt.value = y;
+          opt.textContent = y;
+          yearSelect.appendChild(opt);
+        });
+
+        yearSelect.disabled = years.length === 0;
+        if (years.length) yearSelect.value = years[years.length - 1];
+      };
+
+      const applyFilters = () => {
+        const yearFilter = yearSelect.value;
+        const rawTerm = filterInput.value.trim();
+        const searchTerm = rawTerm.toLowerCase();
+
+        let filtered = [...allRecords];
+        
+        // 情境一：有選擇特定景點（地區）時，顯示「該景點各年份的人次」
+        if (selectedRegion) {
+          const entries = allRecords
+            .filter((r) => r && r[YEAR_FIELD] !== undefined && r[YEAR_FIELD] !== null)
+            .map((r) => ({
+              label: String(r[YEAR_FIELD]),
+              value: Number(r[selectedRegion]) || 0,
+            }))
+            .filter((e) => e.value > 0);
+
+          if (!entries.length) {
+            subtitle.textContent = TOURISM_SOURCE_TEXT;
+            renderTable([]);
+            updateChart();
+            return;
+          }
+
+          // 依年份排序（由小到大）
+          entries.sort((a, b) => Number(a.label) - Number(b.label));
+          subtitle.textContent = TOURISM_SOURCE_TEXT;
+          renderTable(entries, '年度');
+          updateChart();
+          return;
+        }
+
+        // 情境二：未選景點，依「單一年份」展開所有景點
+        if (yearFilter) {
+          filtered = filtered.filter((r) => String(r[YEAR_FIELD]) === String(yearFilter));
+        }
+
+        const targetRecord =
+          filtered.find((r) => String(r[YEAR_FIELD]) === String(yearFilter)) ?? filtered[0] ?? null;
+
+        if (!targetRecord) {
+          subtitle.textContent = TOURISM_SOURCE_TEXT;
+          renderTable([]);
+          updateChart();
+          return;
+        }
+
+        let entries = Object.entries(targetRecord)
+          .filter(([key]) => key !== YEAR_FIELD && key !== REGION_FIELD)
+          .map(([key, value]) => ({ label: key, value: Number(value) || 0 }));
+
+        if (searchTerm) {
+          entries = entries.filter((e) => String(e.label).toLowerCase().includes(searchTerm));
+        }
+        subtitle.textContent = TOURISM_SOURCE_TEXT;
+
+        entries.sort((a, b) => b.value - a.value);
+
+        renderTable(entries, '景點');
+        updateChart();
+      };
+
+      const fetchRecords = async (file) => {
+        showMessage('<div class="loader mx-auto mb-3"></div><p class="mb-0">讀取 JSON...</p>');
+        setStatus('讀取中', 'info');
+        try {
+          const response = await fetch(`/api/files/${encodeURIComponent(file)}`);
+          if (!response.ok) throw new Error('API 回傳失敗');
+          const payload = await response.json();
+
+          allRecords = Array.isArray(payload.records) ? payload.records : [];
+          fieldNames = Array.isArray(payload.fieldNames) ? payload.fieldNames : [];
+          selectedRegion = '';
+          updateControlsVisibility();
+
+          meta.textContent = '高雄市觀光人數資料';
+          subtitle.textContent = TOURISM_SOURCE_TEXT;
+          filterInput.disabled = allRecords.length === 0;
+          filterInput.value = '';
+
+          buildYearOptions();
+          applyFilters();
+          renderRegions();
+          setStatus('資料就緒', 'success');
+        } catch (error) {
+          console.error(error);
+          allRecords = [];
+          fieldNames = [];
+          yearSelect.innerHTML = '';
+          yearSelect.disabled = true;
+          filterInput.disabled = true;
+          subtitle.textContent = '—';
+          meta.textContent = `讀取失敗：${file}`;
+          countIndicator.textContent = '0';
+          regionSummary.textContent = '—';
+          regionList.innerHTML = '';
+          regionClearBtn.disabled = true;
+          setStatus('讀取失敗', 'danger');
+          showMessage('<p class="text-danger mb-0">無法讀取資料。</p>');
+        }
+      };
+
+      // --- 人口統計：依高雄市行政區彙總 ---
+
+      const POPULATION_METRICS = {
+        birth: { field: '出生數', label: '出生數' },
+        death: { field: '死亡數', label: '死亡數' },
+        marry: { field: '結婚對數_異性', label: '結婚對數(異性)' },
+        divorce: { field: '離婚對數_異性', label: '離婚對數(異性)' },
+      };
+
+      const getSelectedPopulationMetric = () => {
+        if (!populationMetricSelect) return POPULATION_METRICS.birth;
+        const key = populationMetricSelect.value;
+        return POPULATION_METRICS[key] || POPULATION_METRICS.birth;
+      };
+
+      const summarizePopulationByDistrict = () => {
+        if (!Array.isArray(populationRecords) || !populationRecords.length) return [];
+        const metric = getSelectedPopulationMetric();
+        const field = metric.field;
+
+        const map = new Map();
+        const months = new Set();
+
+        for (const record of populationRecords) {
+          if (!record) continue;
+          const region = record['區域別'];
+          const district = extractKaohsiungDistrictFromRegion(region);
+          if (!district) continue;
+
+          const ym = String(record['統計年月'] ?? '').trim();
+          if (ym) months.add(ym);
+
+          const value = Number(record[field] ?? 0) || 0;
+          const prev = map.get(district) || 0;
+          map.set(district, prev + value);
+        }
+
+        const summary = Array.from(map.entries())
+          .map(([district, value]) => ({ district, value }))
+          .sort((a, b) => b.value - a.value);
+
+        if (populationMonth) {
+          populationMonth.textContent = months.size ? Array.from(months)[0] : '—';
+        }
+        if (populationDistrictCount) {
+          populationDistrictCount.textContent = String(summary.length);
+        }
+
+        return summary;
+      };
+
+      const initializePopulationChart = () => {
+        if (populationChartInstanceTop) {
+          populationChartInstanceTop.destroy();
+          populationChartInstanceTop = null;
+        }
+        if (populationChartInstanceBottom) {
+          populationChartInstanceBottom.destroy();
+          populationChartInstanceBottom = null;
+        }
+
+        if (populationChartCanvasTop) {
+          populationChartInstanceTop = new Chart(populationChartCanvasTop, {
+            type: 'bar',
+            data: {
+              labels: [],
+              datasets: [
+                {
+                  label: '數量',
+                  data: [],
+                  backgroundColor: 'rgba(59, 130, 246, 0.9)',
+                  borderRadius: 6,
+                  borderSkipped: false,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: {
+                  ticks: {
+                    color: '#0f172a',
+                    maxRotation: 0,
+                    minRotation: 0,
+                    autoSkip: false,
+                    font: { size: 10 },
+                  },
+                },
+                y: { beginAtZero: true, ticks: { color: '#0f172a' } },
+              },
+              plugins: {
+                legend: { display: false },
+                tooltip: { mode: 'index', intersect: false },
+              },
+            },
+          });
+        }
+
+        if (populationChartCanvasBottom) {
+          populationChartInstanceBottom = new Chart(populationChartCanvasBottom, {
+            type: 'bar',
+            data: {
+              labels: [],
+              datasets: [
+                {
+                  label: '數量',
+                  data: [],
+                  backgroundColor: 'rgba(59, 130, 246, 0.9)',
+                  borderRadius: 6,
+                  borderSkipped: false,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: {
+                  ticks: {
+                    color: '#0f172a',
+                    maxRotation: 0,
+                    minRotation: 0,
+                    autoSkip: false,
+                    font: { size: 10 },
+                  },
+                },
+                y: { beginAtZero: true, ticks: { color: '#0f172a' } },
+              },
+              plugins: {
+                legend: { display: false },
+                tooltip: { mode: 'index', intersect: false },
+              },
+            },
+          });
+        }
+      };
+
+      const renderPopulation = () => {
+        if (!populationTableWrap) return;
+        const metric = getSelectedPopulationMetric();
+        const summary = summarizePopulationByDistrict();
+
+        if (!summary.length) {
+          populationTableWrap.innerHTML = `
+            <div class="d-flex justify-content-center align-items-center" style="min-height: 240px;">
+              <div class="text-center text-muted">目前沒有高雄市人口資料。</div>
+            </div>`;
+          [populationChartInstanceTop, populationChartInstanceBottom].forEach((instance) => {
+            if (instance) {
+              instance.data.labels = [];
+              instance.data.datasets[0].data = [];
+              instance.update();
+            }
+          });
+          return;
+        }
+
+        const thead = `
+          <thead class="table-light">
+            <tr>
+              <th scope="col" style="width: 55%;">行政區</th>
+              <th scope="col" class="text-end" style="width: 45%;">${metric.label}</th>
+            </tr>
+          </thead>`;
+
+        const tbody = summary
+          .map(({ district, value }) => {
+            const formatted = Number(value || 0).toLocaleString('zh-TW');
+            return `
+              <tr>
+                <td>${district}</td>
+                <td class="text-end">${formatted}</td>
+              </tr>`;
+          })
+          .join('');
+
+        populationTableWrap.innerHTML = `
+          <div class="table-responsive">
+            <table class="table table-sm table-striped table-hover align-middle mb-0">
+              ${thead}
+              <tbody>${tbody}</tbody>
+            </table>
+          </div>`;
+
+        if (!populationChartInstanceTop || !populationChartInstanceBottom) initializePopulationChart();
+        if (!populationChartInstanceTop || !populationChartInstanceBottom) return;
+
+        const mid = Math.ceil(summary.length / 2);
+        const topSummary = summary.slice(0, mid);
+        const bottomSummary = summary.slice(mid);
+
+        const updatePopulationChartPart = (partSummary, chartInstance, canvas, area) => {
+          if (!chartInstance || !canvas || !area) return;
+          const labels = partSummary.map((x) => x.district);
+          const values = partSummary.map((x) => x.value || 0);
+
+          const labelCount = labels.length;
+          const baseWidthPerLabel = 100;
+          const containerWidth = area ? area.clientWidth || 0 : 0;
+          const targetWidth = Math.max(containerWidth, labelCount * baseWidthPerLabel);
+          canvas.style.width = `${targetWidth}px`;
+
+          chartInstance.data.labels = labels;
+          chartInstance.data.datasets[0].data = values;
+          chartInstance.data.datasets[0].label = metric.label;
+          chartInstance.update();
+        };
+
+        updatePopulationChartPart(topSummary, populationChartInstanceTop, populationChartCanvasTop, populationChartAreaTop);
+        updatePopulationChartPart(bottomSummary, populationChartInstanceBottom, populationChartCanvasBottom, populationChartAreaBottom);
+      };
+
+      const fetchPopulationRecords = async () => {
+        if (!populationMeta || !populationSubtitle) return;
+        populationMeta.textContent = '高雄市人口動態資料';
+        populationSubtitle.textContent = POPULATION_SOURCE_TEXT;
+
+        if (populationTableWrap) {
+          populationTableWrap.innerHTML = `
+            <div class="d-flex justify-content-center align-items-center" style="min-height: 240px;">
+              <div class="text-center text-muted">
+                <div class="loader mb-2"></div>
+                <div>讀取人口 JSON...</div>
+              </div>
+            </div>`;
+        }
+
+        try {
+          const response = await fetch(`/api/files/${encodeURIComponent(POPULATION_FILE)}`);
+          if (!response.ok) throw new Error('API 回傳失敗');
+          const payload = await response.json();
+
+          const records = Array.isArray(payload.records)
+            ? payload.records
+            : Array.isArray(payload.Records)
+              ? payload.Records
+              : [];
+
+          populationRecords = records;
+          populationLoaded = true;
+
+          initializePopulationChart();
+          renderPopulation();
+        } catch (error) {
+          console.error('讀取人口資料失敗：', error);
+          populationRecords = [];
+          populationLoaded = false;
+          if (populationTableWrap) {
+            populationTableWrap.innerHTML = '<p class="text-danger mb-0">無法讀取人口資料。</p>';
+          }
+        }
+      };
+
+      // --- 交通事故：年度件數彙總 ---
+
+      const setTrafficStatus = (text, variant = 'info') => {
+        if (!trafficStatusBadge) return;
+        const bg =
+          variant === 'success'
+            ? '#10b981'
+            : variant === 'info'
+              ? '#3b82f6'
+              : variant === 'warning'
+                ? '#f59e0b'
+                : '#ef4444';
+        trafficStatusBadge.textContent = text;
+        trafficStatusBadge.style.background = bg;
+      };
+
+      const showTrafficMessage = (html) => {
+        if (!trafficTableWrap) return;
+        trafficTableWrap.innerHTML = `
+          <div class="d-flex justify-content-center align-items-center" style="min-height: 240px;">
+            <div class="text-center text-muted">${html}</div>
+          </div>`;
+      };
+
+      const setTrafficChartAreaHeight = (nextHeight) => {
+        if (!trafficChartArea) return;
+        trafficChartAreaHeight = Math.max(220, Math.min(700, nextHeight));
+        trafficChartArea.style.height = `${trafficChartAreaHeight}px`;
+        if (trafficChartInstance) trafficChartInstance.resize();
+      };
+
+      const switchTrafficView = (mode) => {
+        trafficViewMode = mode === 'enforcement' ? 'enforcement' : 'crash';
+
+        if (trafficCrashPane && trafficEnforcementPane) {
+          if (trafficViewMode === 'crash') {
+            trafficCrashPane.classList.remove('d-none');
+            trafficEnforcementPane.classList.add('d-none');
+          } else {
+            trafficCrashPane.classList.add('d-none');
+            trafficEnforcementPane.classList.remove('d-none');
+          }
+        }
+
+        if (trafficCrashBtn && trafficEnforcementBtn) {
+          if (trafficViewMode === 'crash') {
+            trafficCrashBtn.classList.remove('btn-outline-primary');
+            trafficCrashBtn.classList.add('btn-primary');
+            trafficEnforcementBtn.classList.remove('btn-primary');
+            trafficEnforcementBtn.classList.add('btn-outline-primary');
+          } else {
+            trafficCrashBtn.classList.remove('btn-primary');
+            trafficCrashBtn.classList.add('btn-outline-primary');
+            trafficEnforcementBtn.classList.remove('btn-outline-primary');
+            trafficEnforcementBtn.classList.add('btn-primary');
+          }
+        }
+
+        // 讓 Leaflet 重新計算尺寸，避免切換視圖後地圖壓縮
+        setTimeout(() => {
+          if (trafficViewMode === 'crash' && crashMap) {
+            crashMap.invalidateSize();
+          } else if (trafficViewMode === 'enforcement' && enforceMap) {
+            enforceMap.invalidateSize();
+          }
+        }, 200);
+      };
+
+      const initializeTrafficChart = () => {
+        // A1 chart
+        if (trafficChartCanvas) {
+          if (trafficChartInstance) trafficChartInstance.destroy();
+          trafficChartInstance = new Chart(trafficChartCanvas, {
+            type: 'bar',
+            data: {
+              labels: [],
+              datasets: [
+                {
+                  label: 'A1 事故件數',
+                  data: [],
+                  backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                  borderRadius: 6,
+                  borderSkipped: false,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: {
+                  ticks: {
+                    color: '#0f172a',
+                    maxRotation: 0,
+                    minRotation: 0,
+                    autoSkip: false,
+                    font: {
+                      size: 10,
+                    },
+                  },
+                },
+                y: { beginAtZero: true, ticks: { color: '#0f172a' } },
+              },
+              plugins: {
+                legend: { display: false },
+                tooltip: { mode: 'index', intersect: false },
+              },
+            },
+          });
+        }
+
+        // A2 chart
+        if (trafficChartCanvasA2) {
+          if (trafficChartInstanceA2) trafficChartInstanceA2.destroy();
+          trafficChartInstanceA2 = new Chart(trafficChartCanvasA2, {
+            type: 'bar',
+            data: {
+              labels: [],
+              datasets: [
+                {
+                  label: 'A2 事故件數',
+                  data: [],
+                  backgroundColor: 'rgba(34, 197, 94, 0.9)',
+                  borderRadius: 6,
+                  borderSkipped: false,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: {
+                  ticks: {
+                    color: '#0f172a',
+                    maxRotation: 0,
+                    minRotation: 0,
+                    autoSkip: false,
+                    font: {
+                      size: 10,
+                    },
+                  },
+                },
+                y: { beginAtZero: true, ticks: { color: '#0f172a' } },
+              },
+              plugins: {
+                legend: { display: false },
+                tooltip: { mode: 'index', intersect: false },
+              },
+            },
+          });
+        }
+
+        // A3 chart
+        if (trafficChartCanvasA3) {
+          if (trafficChartInstanceA3) trafficChartInstanceA3.destroy();
+          trafficChartInstanceA3 = new Chart(trafficChartCanvasA3, {
+            type: 'bar',
+            data: {
+              labels: [],
+              datasets: [
+                {
+                  label: 'A3 事故件數',
+                  data: [],
+                  backgroundColor: 'rgba(59, 130, 246, 0.9)',
+                  borderRadius: 6,
+                  borderSkipped: false,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: {
+                  ticks: {
+                    color: '#0f172a',
+                    maxRotation: 0,
+                    minRotation: 0,
+                    autoSkip: false,
+                    font: {
+                      size: 10,
+                    },
+                  },
+                },
+                y: { beginAtZero: true, ticks: { color: '#0f172a' } },
+              },
+              plugins: {
+                legend: { display: false },
+                tooltip: { mode: 'index', intersect: false },
+              },
+            },
+          });
+        }
+      };
+
+      const initializeEnforceCharts = () => {
+        if (enforceChartCanvasDistrict) {
+          if (enforceChartInstanceDistrict) enforceChartInstanceDistrict.destroy();
+          enforceChartInstanceDistrict = new Chart(enforceChartCanvasDistrict, {
+            type: 'bar',
+            data: {
+              labels: [],
+              datasets: [
+                {
+                  label: '固定測速',
+                  data: [],
+                  backgroundColor: 'rgba(37, 99, 235, 0.9)',
+                  borderRadius: 6,
+                  borderSkipped: false,
+                },
+                {
+                  label: '移動測速',
+                  data: [],
+                  backgroundColor: 'rgba(16, 185, 129, 0.9)',
+                  borderRadius: 6,
+                  borderSkipped: false,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: {
+                  ticks: {
+                    color: '#0f172a',
+                    maxRotation: 0,
+                    minRotation: 0,
+                    autoSkip: false,
+                    font: { size: 10 },
+                  },
+                },
+                y: { beginAtZero: true, ticks: { color: '#0f172a' } },
+              },
+              plugins: {
+                tooltip: { mode: 'index', intersect: false },
+              },
+            },
+          });
+        }
+
+        if (enforceChartCanvasType) {
+          if (enforceChartInstanceType) enforceChartInstanceType.destroy();
+          enforceChartInstanceType = new Chart(enforceChartCanvasType, {
+            type: 'bar',
+            data: {
+              labels: [],
+              datasets: [
+                {
+                  label: '據點數',
+                  data: [],
+                  backgroundColor: 'rgba(249, 115, 22, 0.9)',
+                  borderRadius: 6,
+                  borderSkipped: false,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: {
+                  ticks: {
+                    color: '#0f172a',
+                    maxRotation: 0,
+                    minRotation: 0,
+                    autoSkip: false,
+                    font: { size: 10 },
+                  },
+                },
+                y: { beginAtZero: true, ticks: { color: '#0f172a' } },
+              },
+              plugins: {
+                tooltip: { mode: 'index', intersect: false },
+              },
+            },
+          });
+        }
+      };
+
+      // 由紀錄推算「行政區」名稱（例如：高雄市三民區）
+      const extractDistrictFromRecord = (record) => {
+        if (!record || typeof record !== 'object') return '';
+
+        // 1. 若有明確「行政區」欄位，優先使用
+        const direct = String(record['行政區'] ?? '').trim();
+        if (direct) return direct;
+
+        // 2. 從地址文字中擷取出「xx區」片段
+        const loc = String(
+          record['發生地點'] ??
+            record['發生路段'] ??
+            record['地點'] ??
+            ''
+        ).trim();
+        if (!loc) return '';
+
+        // 優先抓取類似「高雄市三民區」的完整片段
+        const withCity = loc.match(/高雄市[\u4e00-\u9fff]{1,3}區/);
+        if (withCity && withCity[0]) return withCity[0].trim();
+
+        // 否則抓最後一個「xx區」當作行政區
+        const matches = loc.match(/[\u4e00-\u9fff]{1,3}區/g);
+        if (matches && matches.length) {
+          return matches[matches.length - 1].trim();
+        }
+
+        return '';
+      };
+
+      // 轉成短標籤，只顯示「xx區」用在圖表 X 軸
+      const toShortDistrictLabel = (fullName) => {
+        const text = String(fullName ?? '').trim();
+        if (!text) return '';
+        // 先拿掉前面的「高雄市」，避免出現「市前鎮區」這種情況
+        const normalized = text.replace(/^高雄市/, '');
+        const matches = normalized.match(/[\u4e00-\u9fff]{1,3}區/g);
+        if (matches && matches.length) return matches[matches.length - 1];
+        return normalized;
+      };
+
+      // 依「行政區」彙總 A1/A2/A3 事故件數（來源：AccidentPlaceBefore104 熱點）
+      const summarizeTrafficByDistrict = () => {
+        const records = Array.isArray(trafficData.accidentPlaces) ? trafficData.accidentPlaces : [];
+        if (!records.length) return [];
+
+        const map = new Map();
+        for (const record of records) {
+          const dist = extractDistrictFromRecord(record);
+          if (!dist) continue;
+          const a1 = Number(record['A1件數'] ?? 0) || 0;
+          const a2 = Number(record['A2件數'] ?? 0) || 0;
+          const a3 = Number(record['A3件數'] ?? 0) || 0;
+          const prev = map.get(dist) || { a1: 0, a2: 0, a3: 0 };
+          const next = {
+            a1: prev.a1 + a1,
+            a2: prev.a2 + a2,
+            a3: prev.a3 + a3,
+          };
+          map.set(dist, next);
+        }
+
+        return Array.from(map.entries())
+          .map(([district, counts]) => ({
+            district,
+            label: toShortDistrictLabel(district),
+            a1: counts.a1,
+            a2: counts.a2,
+            a3: counts.a3,
+          }))
+          .sort((a, b) => b.a1 - a.a1);
+      };
+
+      const summarizeEnforceByDistrict = () => {
+        const fixed = Array.isArray(trafficData.fixedCameras) ? trafficData.fixedCameras : [];
+        const mobile = Array.isArray(trafficData.mobileCameras) ? trafficData.mobileCameras : [];
+        if (!fixed.length && !mobile.length) return [];
+
+        const map = new Map();
+
+        fixed.forEach((r) => {
+          const dist = formatDistrictLabel(r['行政區']);
+          if (!dist) return;
+          const prev = map.get(dist) || { fixed: 0, mobile: 0 };
+          map.set(dist, { fixed: prev.fixed + 1, mobile: prev.mobile });
+        });
+
+        mobile.forEach((r) => {
+          const dist = formatDistrictLabel(r['行政區']);
+          if (!dist) return;
+          const prev = map.get(dist) || { fixed: 0, mobile: 0 };
+          map.set(dist, { fixed: prev.fixed, mobile: prev.mobile + 1 });
+        });
+
+        return Array.from(map.entries())
+          .map(([district, counts]) => ({
+            district,
+            fixed: counts.fixed,
+            mobile: counts.mobile,
+            total: counts.fixed + counts.mobile,
+          }))
+          .sort((a, b) => b.total - a.total);
+      };
+
+      const summarizeEnforceByType = () => {
+        const fixed = Array.isArray(trafficData.fixedCameras) ? trafficData.fixedCameras : [];
+        const mobile = Array.isArray(trafficData.mobileCameras) ? trafficData.mobileCameras : [];
+        if (!fixed.length && !mobile.length) return [];
+
+        const map = new Map();
+
+        fixed.forEach((r) => {
+          const type = String(r['測照型式'] ?? r['型式'] ?? '').trim() || '未標示';
+          const prev = map.get(type) || 0;
+          map.set(type, prev + 1);
+        });
+
+        mobile.forEach((r) => {
+          let type = String(r['取締項目'] ?? '').trim() || '未標示';
+          if (type === '違左') type = '違規左轉';
+          const prev = map.get(type) || 0;
+          map.set(type, prev + 1);
+        });
+
+        return Array.from(map.entries())
+          .map(([type, count]) => ({ type, count }))
+          .sort((a, b) => b.count - a.count);
+      };
+
+      const updateTrafficChart = () => {
+        if (!trafficChartInstance && !trafficChartInstanceA2 && !trafficChartInstanceA3) {
+          initializeTrafficChart();
+        }
+        if (!trafficChartHint) return;
+
+        const summary = summarizeTrafficByDistrict();
+        if (!summary.length) {
+          if (trafficChartInstance) {
+            trafficChartInstance.data.labels = [];
+            trafficChartInstance.data.datasets[0].data = [];
+            trafficChartInstance.update();
+          }
+          if (trafficChartInstanceA2) {
+            trafficChartInstanceA2.data.labels = [];
+            trafficChartInstanceA2.data.datasets[0].data = [];
+            trafficChartInstanceA2.update();
+          }
+          if (trafficChartInstanceA3) {
+            trafficChartInstanceA3.data.labels = [];
+            trafficChartInstanceA3.data.datasets[0].data = [];
+            trafficChartInstanceA3.update();
+          }
+          trafficChartHint.textContent = '目前沒有可顯示的行政區資料';
+          return;
+        }
+
+        // 依行政區數量與容器寬度動態調整圖表寬度，超出容器時可水平捲動
+        const labelCount = summary.length;
+        const baseWidthPerLabel = 40; // 每個行政區預留的寬度（像素）
+        const containerWidth = trafficChartArea ? trafficChartArea.clientWidth || 0 : 0;
+        const targetWidth = Math.max(containerWidth, labelCount * baseWidthPerLabel);
+        if (trafficChartCanvas) {
+          trafficChartCanvas.style.width = `${targetWidth}px`;
+        }
+        if (trafficChartCanvasA2) {
+          trafficChartCanvasA2.style.width = `${targetWidth}px`;
+        }
+        if (trafficChartCanvasA3) {
+          trafficChartCanvasA3.style.width = `${targetWidth}px`;
+        }
+
+        const labels = summary.map((x) => x.label || x.district);
+        const a1Data = summary.map((x) => x.a1 || 0);
+        const a2Data = summary.map((x) => x.a2 || 0);
+        const a3Data = summary.map((x) => x.a3 || 0);
+
+        if (trafficChartInstance) {
+          trafficChartInstance.data.labels = labels;
+          trafficChartInstance.data.datasets[0].data = a1Data;
+          trafficChartInstance.update();
+        }
+        if (trafficChartInstanceA2) {
+          trafficChartInstanceA2.data.labels = labels;
+          trafficChartInstanceA2.data.datasets[0].data = a2Data;
+          trafficChartInstanceA2.update();
+        }
+        if (trafficChartInstanceA3) {
+          trafficChartInstanceA3.data.labels = labels;
+          trafficChartInstanceA3.data.datasets[0].data = a3Data;
+          trafficChartInstanceA3.update();
+        }
+
+        trafficChartHint.textContent = '各行政區 A1 / A2 / A3 事故件數';
+      };
+
+      const updateEnforceCharts = () => {
+        if (!enforceChartInstanceDistrict && !enforceChartInstanceType) {
+          initializeEnforceCharts();
+        }
+
+        const byDistrict = summarizeEnforceByDistrict();
+        if (enforceChartInstanceDistrict) {
+          const labels = byDistrict.map((x) => x.district);
+          const fixedData = byDistrict.map((x) => x.fixed);
+          const mobileData = byDistrict.map((x) => x.mobile);
+
+          const labelCount = labels.length;
+          const baseWidthPerLabel = 100;
+          const containerWidth = enforceChartAreaDistrict ? enforceChartAreaDistrict.clientWidth || 0 : 0;
+          const targetWidth = Math.max(containerWidth, labelCount * baseWidthPerLabel);
+          if (enforceChartCanvasDistrict) {
+            enforceChartCanvasDistrict.style.width = `${targetWidth}px`;
+          }
+
+          enforceChartInstanceDistrict.data.labels = labels;
+          enforceChartInstanceDistrict.data.datasets[0].data = fixedData;
+          enforceChartInstanceDistrict.data.datasets[1].data = mobileData;
+          enforceChartInstanceDistrict.update();
+        }
+
+        const byType = summarizeEnforceByType();
+        if (enforceChartInstanceType) {
+          const labels = byType.map((x) => x.type);
+          const values = byType.map((x) => x.count);
+
+          const labelCount = labels.length;
+          const baseWidthPerLabel = 120;
+          const containerWidth = enforceChartAreaType ? enforceChartAreaType.clientWidth || 0 : 0;
+          const targetWidth = Math.max(containerWidth, labelCount * baseWidthPerLabel);
+          if (enforceChartCanvasType) {
+            enforceChartCanvasType.style.width = `${targetWidth}px`;
+          }
+
+          enforceChartInstanceType.data.labels = labels;
+          enforceChartInstanceType.data.datasets[0].data = values;
+          enforceChartInstanceType.update();
+        }
+      };
+
+      const renderTrafficTable = () => {
+        if (!trafficTableWrap || !trafficCountIndicator || !trafficSubtitle) return;
+        const summary = summarizeTrafficByDistrict();
+        if (!summary.length) {
+          trafficCountIndicator.textContent = '0';
+          trafficSubtitle.textContent = TRAFFIC_SOURCE_TEXT;
+          showTrafficMessage('<p class="lead mb-0">目前找不到資料。</p>');
+          return;
+        }
+
+        const thead = `
+          <thead class="table-light">
+            <tr>
+              <th scope="col" style="width: 40%;">行政區</th>
+              <th scope="col" class="text-end" style="width: 20%;">A1 件數</th>
+              <th scope="col" class="text-end" style="width: 20%;">A2 件數</th>
+              <th scope="col" class="text-end" style="width: 20%;">A3 件數</th>
+            </tr>
+          </thead>`;
+
+        const tbody = summary
+          .map(({ district, a1, a2, a3 }) => {
+            const f1 = Number(a1 || 0).toLocaleString('zh-TW');
+            const f2 = Number(a2 || 0).toLocaleString('zh-TW');
+            const f3 = Number(a3 || 0).toLocaleString('zh-TW');
+            return `
+              <tr>
+                <td>${district}</td>
+                <td class="text-end">${f1}</td>
+                <td class="text-end">${f2}</td>
+                <td class="text-end">${f3}</td>
+              </tr>`;
+          })
+          .join('');
+
+        trafficTableWrap.innerHTML = `
+          <div class="table-responsive">
+            <table class="table table-sm table-striped table-hover align-middle mb-0">
+              ${thead}
+              <tbody>${tbody}</tbody>
+            </table>
+          </div>`;
+
+        trafficCountIndicator.textContent = String(summary.length);
+        trafficSubtitle.textContent = TRAFFIC_SOURCE_TEXT;
+      };
+
+      // --- Leaflet 地圖：車禍熱點與科技執法 ---
+
+      const ensureCrashMap = () => {
+        if (!trafficCrashMapContainer || typeof L === 'undefined') return;
+
+        // 高雄市大致中心與預設縮放，與科技執法一致
+        const defaultCenter = [22.63, 120.3];
+        const defaultZoom = 11;
+
+        if (!crashMap) {
+          crashMap = L.map(trafficCrashMapContainer).setView(defaultCenter, defaultZoom);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors',
+          }).addTo(crashMap);
+          crashMapLayer = L.layerGroup().addTo(crashMap);
+        }
+
+        if (!crashMapLayer) {
+          crashMapLayer = L.layerGroup().addTo(crashMap);
+        } else {
+          crashMapLayer.clearLayers();
+        }
+
+        const places = Array.isArray(trafficData.accidentPlaces) ? trafficData.accidentPlaces : [];
+        const placesWithGeo = [];
+
+        places.forEach((r) => {
+          if (!r) return;
+          const latRaw = r['lat'] ?? r['Lat'] ?? r['LAT'] ?? r['緯度'];
+          const lngRaw = r['lng'] ?? r['Lng'] ?? r['LNG'] ?? r['經度'];
+          const lat = parseFloat(latRaw);
+          const lng = parseFloat(lngRaw);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+          const road = String(r['發生路段'] ?? r['路段'] ?? '').trim();
+          const dist = String(r['行政區'] ?? '').trim();
+
+          // A1 / A2 / A3 件數來自 AccidentPlaceBefore104
+          const a1 = Number(r['A1件數'] ?? 0) || 0;
+          const a2 = Number(r['A2件數'] ?? 0) || 0;
+          const a3 = Number(r['A3件數'] ?? 0) || 0;
+
+          // 「件數」為該路口總事故數，若沒有就以 A1+A2+A3 估算
+          const totalRaw =
+            r['件數'] ??
+            r['總件數'] ??
+            r['事故件數'] ??
+            '';
+          const total = Number(totalRaw) || a1 + a2 + a3 || 0;
+
+          const marker = L.circleMarker([lat, lng], {
+            radius: 6,
+            color: '#eab308',
+            fillColor: '#facc15',
+            fillOpacity: 0.9,
+          });
+
+          // 黃色點：顯示地點、總事故件數與 A1 / A2 / A3
+          const lines = [];
+          if (dist) lines.push(`<div><strong>${dist}</strong></div>`);
+          if (road) lines.push(`<div>${road}</div>`);
+          if (total > 0) lines.push(`<div>事故件數：${total}</div>`);
+          if (a1 || a2 || a3) {
+            lines.push(`<div>A1：${a1}</div>`);
+            lines.push(`<div>A2：${a2}</div>`);
+            lines.push(`<div>A3：${a3}</div>`);
+          }
+
+          const content = lines.length
+            ? `<div class="traffic-a123-box">${lines.join('')}</div>`
+            : '事故熱點';
+
+          marker.bindPopup(content);
+          marker.addTo(crashMapLayer);
+          placesWithGeo.push({ lat, lng, total, dist, road, a1, a2, a3 });
+        });
+
+        // 取事故件數最高的前幾個路口 / 路段，用黃色驚嘆號標示
+        if (placesWithGeo.length) {
+          const topHotspots = [...placesWithGeo]
+            .filter((p) => p.total > 0)
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 15);
+
+          topHotspots.forEach((p) => {
+            const icon = L.divIcon({
+              className: 'hotspot-marker',
+              html: '!',
+              iconSize: [26, 26],
+              iconAnchor: [13, 13],
+            });
+
+            const marker = L.marker([p.lat, p.lng], { icon });
+            const lines = [];
+            if (p.dist) lines.push(`<div><strong>${p.dist}</strong></div>`);
+            if (p.road) lines.push(`<div>${p.road}</div>`);
+            lines.push(`<div>事故件數：${p.total}</div>`);
+            if (p.a1 || p.a2 || p.a3) {
+              lines.push(`<div>A1：${p.a1}</div>`);
+              lines.push(`<div>A2：${p.a2}</div>`);
+              lines.push(`<div>A3：${p.a3}</div>`);
+            }
+            const content = `<div class="traffic-a123-box">${lines.join('')}</div>`;
+            marker.bindPopup(content);
+            marker.addTo(crashMapLayer);
+          });
+        }
+      };
+
+      const ensureEnforceMap = () => {
+        if (!trafficEnforceMapContainer || typeof L === 'undefined') return;
+
+        const defaultCenter = [22.63, 120.3];
+        const defaultZoom = 11;
+
+        if (!enforceMap) {
+          enforceMap = L.map(trafficEnforceMapContainer).setView(defaultCenter, defaultZoom);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors',
+          }).addTo(enforceMap);
+          enforceMapLayer = L.layerGroup().addTo(enforceMap);
+        }
+
+        if (!enforceMapLayer) {
+          enforceMapLayer = L.layerGroup().addTo(enforceMap);
+        } else {
+          enforceMapLayer.clearLayers();
+        }
+
+        const fixed = Array.isArray(trafficData.fixedCameras) ? trafficData.fixedCameras : [];
+
+        fixed.forEach((r) => {
+          if (!r) return;
+          const latRaw = r['座標緯度'] ?? r['緯度'] ?? r['lat'];
+          const lngRaw = r['座標經度'] ?? r['經度'] ?? r['lng'];
+          const lat = parseFloat(latRaw);
+          const lng = parseFloat(lngRaw);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+          const place = String(r['測照地點'] ?? '').trim();
+          const dist = formatDistrictLabel(r['行政區']);
+          const type = String(r['測照型式'] ?? r['型式'] ?? '').trim();
+
+          const marker = L.circleMarker([lat, lng], {
+            radius: 5,
+            color: '#2563eb',
+            fillColor: '#3b82f6',
+            fillOpacity: 0.9,
+          });
+
+          // 整段資訊（行政區／測照地點／型式）包在淺藍色圓角方塊，藍點不顯示 A1/A2/A3
+          const lines = [];
+          if (dist) lines.push(`<div><strong>${dist}</strong></div>`);
+          if (place) lines.push(`<div>${place}</div>`);
+          if (type) lines.push(`<div>型式：${type}</div>`);
+
+          const content = `<div class="traffic-a123-box">${lines.join('')}</div>`;
+
+          marker.bindPopup(content);
+          marker.addTo(enforceMapLayer);
+        });
+      };
+
+      const fetchTrafficRecords = async () => {
+        if (!trafficMeta) return;
+        showTrafficMessage('<div class="loader mx-auto mb-3"></div><p class="mb-0">讀取事故 JSON...</p>');
+        setTrafficStatus('讀取中', 'info');
+        trafficMeta.textContent = '高雄市交通事故熱區';
+        trafficSubtitle.textContent = TRAFFIC_SOURCE_TEXT;
+
+        const files = KAOHSIUNG_TRAFFIC_FILES;
+
+        try {
+          const results = await Promise.allSettled([
+            fetch(`/api/files/${encodeURIComponent(files.accidentPlaces)}`).then((r) => (r.ok ? r.json() : Promise.reject())),
+            fetch(`/api/files/${encodeURIComponent(files.fixedCameras)}`).then((r) => (r.ok ? r.json() : Promise.reject())),
+            fetch(`/api/files/${encodeURIComponent(files.mobileCameras)}`).then((r) => (r.ok ? r.json() : Promise.reject())),
+          ]);
+
+          const [placeRes, fixedRes, mobileRes] = results;
+          trafficData.accidentPlaces =
+            placeRes && placeRes.status === 'fulfilled' && Array.isArray(placeRes.value.records)
+              ? placeRes.value.records
+              : [];
+          trafficData.fixedCameras =
+            fixedRes && fixedRes.status === 'fulfilled' && Array.isArray(fixedRes.value.records)
+              ? fixedRes.value.records
+              : [];
+          trafficData.mobileCameras =
+            mobileRes && mobileRes.status === 'fulfilled' && Array.isArray(mobileRes.value.records)
+              ? mobileRes.value.records
+              : [];
+
+          const districtSummary = summarizeTrafficByDistrict();
+
+          if (!districtSummary.length) {
+            setTrafficStatus('沒有行政區資料', 'warning');
+            renderTrafficTable();
+            updateTrafficChart();
+          } else {
+            setTrafficStatus('資料就緒', 'success');
+            renderTrafficTable();
+            updateTrafficChart();
+          }
+
+          // 根據載入結果更新「科技執法」子頁的摘要與表格
+          if (enforceMeta && enforceSubtitle) {
+            enforceMeta.textContent = '高雄市科技執法資料';
+            enforceSubtitle.textContent = '來源： 政府資料開放平台(高雄市113年科技執法「固定式違規照相設備」設置地點)';
+          }
+          if (enforceHotspotCount) {
+            const count = Array.isArray(trafficData.accidentPlaces)
+              ? trafficData.accidentPlaces.length
+              : 0;
+            enforceHotspotCount.textContent = String(count);
+          }
+          if (enforceFixedCount) {
+            const count = Array.isArray(trafficData.fixedCameras)
+              ? trafficData.fixedCameras.length
+              : 0;
+            enforceFixedCount.textContent = String(count);
+          }
+          if (enforceMobileCount) {
+            const validMobile = Array.isArray(trafficData.mobileCameras)
+              ? trafficData.mobileCameras.filter((r) => r && r['路段'])
+              : [];
+            enforceMobileCount.textContent = String(validMobile.length);
+          }
+
+          if (enforceFixedTableWrap) {
+            const rows = Array.isArray(trafficData.fixedCameras)
+              ? trafficData.fixedCameras
+              : [];
+            if (!rows.length) {
+              enforceFixedTableWrap.innerHTML = '<span class="text-muted">目前沒有固定測速資料。</span>';
+            } else {
+              const thead = `
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">地點</th>
+                    <th scope="col">行政區</th>
+                    <th scope="col">型式</th>
+                  </tr>
+                </thead>`;
+              const tbody = rows
+                .map((r) => {
+                  const place = String(r['測照地點'] ?? '');
+                  const dist = formatDistrictLabel(r['行政區']);
+                  const type = String(r['測照型式'] ?? r['型式'] ?? '');
+                  return `
+                    <tr>
+                      <td title="${place}">${place}</td>
+                      <td>${dist}</td>
+                      <td>${type}</td>
+                    </tr>`;
+                })
+                .join('');
+              enforceFixedTableWrap.innerHTML = `
+                <div class="table-responsive" style="max-height:260px;">
+                  <table class="table table-sm table-striped table-hover align-middle mb-0">
+                    ${thead}
+                    <tbody>${tbody}</tbody>
+                  </table>
+                </div>`;
+            }
+          }
+
+          if (enforceMobileTableWrap) {
+            const rows = Array.isArray(trafficData.mobileCameras)
+              ? trafficData.mobileCameras.filter((r) => r && r['路段'])
+              : [];
+            if (!rows.length) {
+              enforceMobileTableWrap.innerHTML = '<span class="text-muted">目前沒有移動測速資料。</span>';
+            } else {
+              const thead = `
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">路段</th>
+                    <th scope="col">行政區</th>
+                    <th scope="col">取締項目</th>
+                  </tr>
+                </thead>`;
+              const tbody = rows
+                .map((r) => {
+                  const road = String(r['路段'] ?? '');
+                  const dist = formatDistrictLabel(r['行政區']);
+                  const item = String(r['取締項目'] ?? '');
+                  return `
+                    <tr>
+                      <td title="${road}">${road}</td>
+                      <td>${dist}</td>
+                      <td>${item}</td>
+                    </tr>`;
+                })
+                .join('');
+              enforceMobileTableWrap.innerHTML = `
+                <div class="table-responsive" style="max-height:260px;">
+                  <table class="table table-sm table-striped table-hover align-middle mb-0">
+                    ${thead}
+                    <tbody>${tbody}</tbody>
+                  </table>
+                </div>`;
+            }
+          }
+
+          // 載入完成後建立／更新地圖
+          ensureCrashMap();
+          ensureEnforceMap();
+
+          // 更新科技執法統計長條圖
+          updateEnforceCharts();
+
+          trafficLoaded = true;
+        } catch (error) {
+          console.error(error);
+          trafficData = { accidentPlaces: [], fixedCameras: [], mobileCameras: [] };
+          setTrafficStatus('讀取失敗', 'danger');
+          if (trafficCountIndicator) trafficCountIndicator.textContent = '0';
+          if (trafficSubtitle) trafficSubtitle.textContent = '無法讀取高雄市車禍相關 JSON';
+          showTrafficMessage('<p class="text-danger mb-0">無法讀取事故資料。</p>');
+          if (trafficChartHint) trafficChartHint.textContent = '讀取失敗';
+          if (trafficChartInstance) {
+            trafficChartInstance.data.labels = [];
+            trafficChartInstance.data.datasets[0].data = [];
+            trafficChartInstance.update();
+          }
+        }
+      };
+
+      yearSelect.addEventListener('change', applyFilters);
+      filterInput.addEventListener('input', () => {
+        if (selectedRegion && filterInput.value.trim() !== selectedRegion) {
+          selectedRegion = '';
+        }
+        updateControlsVisibility();
+        applyFilters();
+        renderRegions();
+      });
+
+      regionClearBtn.addEventListener('click', () => {
+        selectedRegion = '';
+        filterInput.value = '';
+        updateControlsVisibility();
+        applyFilters();
+        renderRegions();
+      });
+
+      if (trafficCrashBtn) {
+        trafficCrashBtn.addEventListener('click', () => {
+          switchTrafficView('crash');
+        });
+      }
+
+      if (trafficEnforcementBtn) {
+        trafficEnforcementBtn.addEventListener('click', () => {
+          switchTrafficView('enforcement');
+        });
+      }
+
+      if (populationMetricSelect) {
+        populationMetricSelect.addEventListener('change', () => {
+          renderPopulation();
+        });
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        setStatus('初始化', 'info');
+        setChartAreaHeight(320);
+        initializeChart();
+        updateControlsVisibility();
+        meta.textContent = '高雄市觀光人數資料';
+        subtitle.textContent = TOURISM_SOURCE_TEXT;
+        regionSummary.textContent = '尚未載入';
+        regionList.innerHTML = '';
+        regionClearBtn.disabled = true;
+        fetchRecords(FIXED_FILE);
+
+        // 交通事故：僅先初始化圖表，高雄市車禍資料在第一次進入交通區時才載入
+        setTrafficStatus('初始化', 'info');
+        setTrafficChartAreaHeight(380);
+        initializeTrafficChart();
+        initializeEnforceCharts();
+
+        // 確保一開始導覽列與區塊狀態一致
+        switchSection('tourism');
+      });
+    </script>
+  </body>
+</html>
